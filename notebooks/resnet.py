@@ -45,15 +45,18 @@ class BasicBlock(hk.Module):
 
     def __init__(self, in_planes, planes, stride=1):
         super(BasicBlock, self).__init__()
-        self.conv1 = hk.Conv2d(in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv1 = hk.Conv2d(
+            in_planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn1 = hk.BatchNorm2d()
-        self.conv2 = hk.Conv2d(planes, planes, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv2 = hk.Conv2d(planes, planes, kernel_size=3,
+                               stride=1, padding=1, bias=False)
         self.bn2 = hk.BatchNorm2d(planes)
 
         self.shortcut = hk.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = hk.Sequential([
-                hk.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
+                hk.Conv2d(in_planes, self.expansion*planes,
+                          kernel_size=1, stride=stride, bias=False),
                 hk.BatchNorm2d(self.expansion*planes)
             ])
 
@@ -74,15 +77,14 @@ class ResNet(hk.Module):
         self.num_blocks = num_blocks
         self.num_classes = num_classes
 
-        self.conv1 = hk.Conv2d(64, kernel_size=3, stride=1,
-                               padding=1, bias=False)  # OK
+        self.conv1 = hk.Conv2d(64, kernel_shape=3, stride=1,
+                               padding='SAME', bias=False)  # OK
         self.bn1 = hk.BatchNorm2d()
         # self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
         # self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
         # self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
         # self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
         self.linear = hk.Linear(512*block.expansion, num_classes)
-
 
     # Let's pretend this works for a moment...
     # def _make_layer(self, block, planes, num_blocks, stride):
@@ -104,5 +106,6 @@ class ResNet(hk.Module):
         out = self.linear(out)
         return out
 
-def ResNet18(num_classes=10):
-    return ResNet(BasicBlock, [2, 2, 2, 2], num_classes)
+
+def ResNet18(x):
+    return ResNet(BasicBlock, [2, 2, 2, 2], 10)(x)
