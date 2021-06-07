@@ -1,3 +1,5 @@
+[ReviewNB](app.reviewnb.com/icmc-data/BadGlobalMinima)
+
 # Bad Global Minima Exist and SGD Can Reach Them
 
 #### Authors: [Shengchao Liu](https://chao1224.github.io/), [Dimitris Papailiopoulos](http://papail.io/), [Dimitris Achlioptas](http://cgi.di.uoa.gr/~optas/)
