@@ -111,14 +111,13 @@ class BlockGroup(hk.Module):
       num_blocks: int,
       stride: Union[int, Sequence[int]],
       bn_config: Mapping[str, FloatStrOrBool],
-      resnet_v2: bool,
       bottleneck: bool,
       use_projection: bool,
       name: Optional[str] = None,
   ):
     super().__init__(name=name)
 
-    block_cls = BlockV2 if resnet_v2 else BlockV1
+    block_cls = BlockV1
 
     self.blocks = []
     for i in range(num_blocks):
@@ -141,47 +140,179 @@ def check_length(length, value, name):
   if len(value) != length:
     raise ValueError(f"`{name}` must be of length 4 not {len(value)}")
 
-
 class ResNet(hk.Module):
+  """ResNet model."""
 
-    def __init__(self, block, num_blocks, num_classes=10):
-        super(ResNet, self).__init__()
-        self.in_planes = 64
-        self.block = block
-        self.num_blocks = num_blocks
-        self.num_classes = num_classes
+  CONFIGS = {
+      18: {
+          "blocks_per_group": (2, 2, 2, 2),
+          "bottleneck": False,
+          "channels_per_group": (64, 128, 256, 512),
+          "use_projection": (False, True, True, True),
+      },
+      34: {
+          "blocks_per_group": (3, 4, 6, 3),
+          "bottleneck": False,
+          "channels_per_group": (64, 128, 256, 512),
+          "use_projection": (False, True, True, True),
+      },
+      50: {
+          "blocks_per_group": (3, 4, 6, 3),
+          "bottleneck": True,
+          "channels_per_group": (256, 512, 1024, 2048),
+          "use_projection": (True, True, True, True),
+      },
+      101: {
+          "blocks_per_group": (3, 4, 23, 3),
+          "bottleneck": True,
+          "channels_per_group": (256, 512, 1024, 2048),
+          "use_projection": (True, True, True, True),
+      },
+      152: {
+          "blocks_per_group": (3, 8, 36, 3),
+          "bottleneck": True,
+          "channels_per_group": (256, 512, 1024, 2048),
+          "use_projection": (True, True, True, True),
+      },
+      200: {
+          "blocks_per_group": (3, 24, 36, 3),
+          "bottleneck": True,
+          "channels_per_group": (256, 512, 1024, 2048),
+          "use_projection": (True, True, True, True),
+      },
+  }
 
-        self.conv1 = hk.Conv2d(64, kernel_shape=3, stride=1,
-                               padding='SAME', bias=False)  # OK
-        self.bn1 = hk.BatchNorm2d()
+  BlockGroup = BlockGroup  # pylint: disable=invalid-name
+  BlockV1 = BlockV1  # pylint: disable=invalid-name
 
-        # I'll leave these lines commented just because _make_layer is not working
-        # self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
-        # self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
-        # self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
-        # self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-        self.linear = hk.Linear(512*block.expansion, num_classes)
+  def __init__(
+      self,
+      blocks_per_group: Sequence[int],
+      num_classes: int,
+      bn_config: Optional[Mapping[str, FloatStrOrBool]] = None,
+      bottleneck: bool = True,
+      channels_per_group: Sequence[int] = (256, 512, 1024, 2048),
+      use_projection: Sequence[bool] = (True, True, True, True),
+      logits_config: Optional[Mapping[str, Any]] = None,
+      name: Optional[str] = None,
+  ):
+    """Constructs a ResNet model.
+    Args:
+      blocks_per_group: A sequence of length 4 that indicates the number of
+        blocks created in each group.
+      num_classes: The number of classes to classify the inputs into.
+      bn_config: A dictionary of two elements, ``decay_rate`` and ``eps`` to be
+        passed on to the :class:`~haiku.BatchNorm` layers. By default the
+        ``decay_rate`` is ``0.9`` and ``eps`` is ``1e-5``.
+      bottleneck: Whether the block should bottleneck or not. Defaults to
+        ``True``.
+      channels_per_group: A sequence of length 4 that indicates the number
+        of channels used for each block in each group.
+      use_projection: A sequence of length 4 that indicates whether each
+        residual block should use projection.
+      logits_config: A dictionary of keyword arguments for the logits layer.
+      name: Name of the module.
+    """
+    super().__init__(name=name)
 
-    # Let's pretend this works for a moment...
-    # def _make_layer(self, block, planes, num_blocks, stride):
-    #     strides = [stride] + [1]*(num_blocks-1)
-    #     layers = []
-    #     for stride in strides:
-    #         layers.append(block(self.in_planes, planes, stride))
-    #         self.in_planes = planes * block.expansion
-    #     return hk.Sequential(*layers)
+    bn_config = dict(bn_config or {})
+    bn_config.setdefault("decay_rate", 0.9)
+    bn_config.setdefault("eps", 1e-5)
+    bn_config.setdefault("create_scale", True)
+    bn_config.setdefault("create_offset", True)
 
-    def __call__(self, x):
-        out = jax.nn.relu(self.bn1(self.conv1(x)))
-        # out = self.layer1(out)
-        # out = self.layer2(out)
-        # out = self.layer3(out)
-        # out = self.layer4(out)
-        out = hk.avg_pool(out, 4) # This is probably wrong.
-        out = hk.Reshape(output_shape=(-1, out.size(0)))(out)
-        out = self.linear(out)
-        return out
+    logits_config = dict(logits_config or {})
+    logits_config.setdefault("w_init", jnp.zeros)
+    logits_config.setdefault("name", "logits")
+
+    # Number of blocks in each group for ResNet.
+    check_length(4, blocks_per_group, "blocks_per_group")
+    check_length(4, channels_per_group, "channels_per_group")
+
+    self.initial_conv = hk.Conv2D(
+        output_channels=64,
+        kernel_shape=3,
+        stride=1,
+        with_bias=False,
+        padding="SAME",
+        name="initial_conv")
+
+    self.initial_batchnorm = hk.BatchNorm(name="initial_batchnorm",
+                                            **bn_config)
+
+    self.block_groups = []
+    strides = (1, 2, 2, 2)
+    for i in range(4):
+      self.block_groups.append(
+          BlockGroup(channels=channels_per_group[i],
+                     num_blocks=blocks_per_group[i],
+                     stride=strides[i],
+                     bn_config=bn_config,
+                     bottleneck=bottleneck,
+                     use_projection=use_projection[i],
+                     name="block_group_%d" % (i)))
 
 
-def ResNet18(x):
-    return ResNet(BasicBlock, [2, 2, 2, 2], 10)(x)
+    self.logits = hk.Linear(num_classes, **logits_config)
+
+  def __call__(self, inputs, is_training, test_local_stats=False):
+    out = inputs
+    out = self.initial_conv(out)
+    out = self.initial_batchnorm(out, is_training, test_local_stats)
+    out = jax.nn.relu(out)
+
+    out = hk.max_pool(out,
+                      window_shape=(1, 3, 3, 1),
+                      strides=(1, 2, 2, 1),
+                      padding="SAME")
+
+    for block_group in self.block_groups:
+      out = block_group(out, is_training, test_local_stats)
+
+    out = jnp.mean(out, axis=(1, 2))
+    return self.logits(out)
+
+
+# class ResNet(hk.Module):
+
+#     def __init__(self, block, num_blocks, num_classes=10):
+#         super(ResNet, self).__init__()
+#         self.in_planes = 64
+#         self.block = block
+#         self.num_blocks = num_blocks
+#         self.num_classes = num_classes
+
+#         self.conv1 = hk.Conv2d(64, kernel_shape=3, stride=1,
+#                                padding='SAME', bias=False)  # OK
+#         self.bn1 = hk.BatchNorm2d()
+
+#         # I'll leave these lines commented just because _make_layer is not working
+#         # self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
+#         # self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
+#         # self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
+#         # self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
+#         self.linear = hk.Linear(512*block.expansion, num_classes)
+
+#     # Let's pretend this works for a moment...
+#     # def _make_layer(self, block, planes, num_blocks, stride):
+#     #     strides = [stride] + [1]*(num_blocks-1)
+#     #     layers = []
+#     #     for stride in strides:
+#     #         layers.append(block(self.in_planes, planes, stride))
+#     #         self.in_planes = planes * block.expansion
+#     #     return hk.Sequential(*layers)
+
+#     def __call__(self, x):
+#         out = jax.nn.relu(self.bn1(self.conv1(x)))
+#         # out = self.layer1(out)
+#         # out = self.layer2(out)
+#         # out = self.layer3(out)
+#         # out = self.layer4(out)
+#         out = hk.avg_pool(out, 4) # This is probably wrong.
+#         out = hk.Reshape(output_shape=(-1, out.size(0)))(out)
+#         out = self.linear(out)
+#         return out
+
+
+# def ResNet18(x):
+#     return ResNet(BasicBlock, [2, 2, 2, 2], 10)(x)
