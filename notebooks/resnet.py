@@ -273,46 +273,76 @@ class ResNet(hk.Module):
     return self.logits(out)
 
 
-# class ResNet(hk.Module):
+class ResNet18(ResNet):
+  """ResNet18."""
 
-#     def __init__(self, block, num_blocks, num_classes=10):
-#         super(ResNet, self).__init__()
-#         self.in_planes = 64
-#         self.block = block
-#         self.num_blocks = num_blocks
-#         self.num_classes = num_classes
-
-#         self.conv1 = hk.Conv2d(64, kernel_shape=3, stride=1,
-#                                padding='SAME', bias=False)  # OK
-#         self.bn1 = hk.BatchNorm2d()
-
-#         # I'll leave these lines commented just because _make_layer is not working
-#         # self.layer1 = self._make_layer(block, 64, num_blocks[0], stride=1)
-#         # self.layer2 = self._make_layer(block, 128, num_blocks[1], stride=2)
-#         # self.layer3 = self._make_layer(block, 256, num_blocks[2], stride=2)
-#         # self.layer4 = self._make_layer(block, 512, num_blocks[3], stride=2)
-#         self.linear = hk.Linear(512*block.expansion, num_classes)
-
-#     # Let's pretend this works for a moment...
-#     # def _make_layer(self, block, planes, num_blocks, stride):
-#     #     strides = [stride] + [1]*(num_blocks-1)
-#     #     layers = []
-#     #     for stride in strides:
-#     #         layers.append(block(self.in_planes, planes, stride))
-#     #         self.in_planes = planes * block.expansion
-#     #     return hk.Sequential(*layers)
-
-#     def __call__(self, x):
-#         out = jax.nn.relu(self.bn1(self.conv1(x)))
-#         # out = self.layer1(out)
-#         # out = self.layer2(out)
-#         # out = self.layer3(out)
-#         # out = self.layer4(out)
-#         out = hk.avg_pool(out, 4) # This is probably wrong.
-#         out = hk.Reshape(output_shape=(-1, out.size(0)))(out)
-#         out = self.linear(out)
-#         return out
+  def __init__(self,
+               num_classes: int,
+               bn_config: Optional[Mapping[str, FloatStrOrBool]] = None,
+               logits_config: Optional[Mapping[str, Any]] = None,
+               name: Optional[str] = None):
+    """Constructs a ResNet model.
+    Args:
+      num_classes: The number of classes to classify the inputs into.
+      bn_config: A dictionary of two elements, ``decay_rate`` and ``eps`` to be
+        passed on to the :class:`~haiku.BatchNorm` layers.
+      resnet_v2: Whether to use the v1 or v2 ResNet implementation. Defaults
+        to ``False``.
+      logits_config: A dictionary of keyword arguments for the logits layer.
+      name: Name of the module.
+    """
+    super().__init__(num_classes=num_classes,
+                     bn_config=bn_config,
+                     logits_config=logits_config,
+                     name=name,
+                     **ResNet.CONFIGS[18])
 
 
-# def ResNet18(x):
-#     return ResNet(BasicBlock, [2, 2, 2, 2], 10)(x)
+class ResNet34(ResNet):
+  """ResNet34."""
+
+  def __init__(self,
+               num_classes: int,
+               bn_config: Optional[Mapping[str, FloatStrOrBool]] = None,
+               logits_config: Optional[Mapping[str, Any]] = None,
+               name: Optional[str] = None):
+    """Constructs a ResNet model.
+    Args:
+      num_classes: The number of classes to classify the inputs into.
+      bn_config: A dictionary of two elements, ``decay_rate`` and ``eps`` to be
+        passed on to the :class:`~haiku.BatchNorm` layers.
+      resnet_v2: Whether to use the v1 or v2 ResNet implementation. Defaults
+        to ``False``.
+      logits_config: A dictionary of keyword arguments for the logits layer.
+      name: Name of the module.
+    """
+    super().__init__(num_classes=num_classes,
+                     bn_config=bn_config,
+                     logits_config=logits_config,
+                     name=name,
+                     **ResNet.CONFIGS[34])
+
+
+class ResNet50(ResNet):
+  """ResNet50."""
+
+  def __init__(self,
+               num_classes: int,
+               bn_config: Optional[Mapping[str, FloatStrOrBool]] = None,
+               logits_config: Optional[Mapping[str, Any]] = None,
+               name: Optional[str] = None):
+    """Constructs a ResNet model.
+    Args:
+      num_classes: The number of classes to classify the inputs into.
+      bn_config: A dictionary of two elements, ``decay_rate`` and ``eps`` to be
+        passed on to the :class:`~haiku.BatchNorm` layers.
+      resnet_v2: Whether to use the v1 or v2 ResNet implementation. Defaults
+        to ``False``.
+      logits_config: A dictionary of keyword arguments for the logits layer.
+      name: Name of the module.
+    """
+    super().__init__(num_classes=num_classes,
+                     bn_config=bn_config,
+                     logits_config=logits_config,
+                     name=name,
+                     **ResNet.CONFIGS[50])
