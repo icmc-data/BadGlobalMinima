@@ -16,7 +16,7 @@ CLASS_NUM = 10
 def _forward(net, batch, is_training):
     """Forward application of the resnet."""
     images = batch['image'].reshape(-1, 32, 32, 3)
-    return net(images, is_training=is_training)
+    return net(num_classes=CLASS_NUM)(images, is_training=is_training)
 
 
 # Transform our forwards function into a pair of pure functions.
@@ -90,7 +90,8 @@ def train(run_name, description, net, epochs, dataloader, dataloader_test, l2=Tr
 
     rng = random.PRNGKey(0)
 
-    train_state = initial_state(rng, opt, jnp.zeros((64, 32, 32, 3)))
+    train_state = initial_state(
+        rng, opt, net, {"image": jnp.zeros((64, 32, 32, 3))})
 
     artifact = wandb.Artifact(run_name, type='model', description=description)
 
