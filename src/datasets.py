@@ -1,26 +1,51 @@
 import numpy as np
 import torch
-from torchvision.datasets import cifar
+
+from torchvision.datasets import CIFAR10
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-NORMILIZE_TRANSFORM = transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+
+NORMALIZE_TRANSFORM = transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
 
 AUGMENTATION_TRANSFORMS = transforms.Compose([
     transforms.RandomCrop(32, padding=4),
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
-    NORMILIZE_TRANSFORM,
+    NORMALIZE_TRANSFORM,
 ])
 
 STANDARD_TRANFORMS = transforms.Compose([
     transforms.ToTensor(),
-    NORMILIZE_TRANSFORM
+    NORMALIZE_TRANSFORM
 ])
 
-def get_adversarial_cifar(R=1, zero_out_ratio=0, random_state=0):
-    pass
+def get_adversarial_cifar(data_root, download_data=False, R=1, zero_out_ratio=0, random_state=0):
+    ds = CIFAR10(root=data_root,
+                 download=download_data,
+                 train=True)
+
+    adv_ds = AdversarialDataset(ds.data, 
+                                n_classes=10, 
+                                R=R, 
+                                zero_out_ratio=zero_out_ratio, 
+                                random_state=random_state)
     
+    return adv_ds
+
+
+def get_cifar(data_root, download_data=False, split='train', augmentation=False):
+    if split not in ['train', 'test']:
+        raise ValueError(f'split must be train or test, not {split}')
+
+    transform = AUGMENTATION_TRANSFORMS if augmentation else STANDARD_TRANFORMS
+
+    ds = CIFAR10(root=data_root, 
+                 train=True if split == 'train' else False,
+                 download=download_data,
+                 transform=transform)
+
+    return ds
 
 class AdversarialDataset(Dataset):
     def __init__(self, original_images, n_classes=10, R=1, zero_out_ratio=0, random_state=0):
