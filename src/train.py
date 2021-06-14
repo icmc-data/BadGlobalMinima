@@ -8,20 +8,17 @@ import jax
 from jax import numpy as jnp
 from jax import random
 from typing import NamedTuple
+from functools import partial
 
 # Number of classes in CIFAR10
 CLASS_NUM = 10
 
-
-def _forward(net, batch, is_training):
-    """Forward application of the resnet."""
-    images = batch['image'].reshape(-1, 32, 32, 3)
-    return net(num_classes=CLASS_NUM)(images, is_training=is_training)
-
-
-# Transform our forwards function into a pair of pure functions.
-forward = hk.transform_with_state(_forward)
-
+def get_forward_fn(net):
+    def _forward(batch, is_training):
+        """Forward application of the resnet."""
+        images = batch[0].reshape(-1, 32, 32, 3)
+        return net(num_classes=CLASS_NUM)(images, is_training=is_training)
+    return _forward
 
 def make_optimizer(momentum=True):
     """SGD with momentum and a fixed lr."""
@@ -44,12 +41,12 @@ class TrainState(NamedTuple):
     opt_state: optax.OptState
 
 
-def loss_fn(params, state, net, batch, l2=True):
+def loss_fn(forward, params, state, batch, l2=True):
     """Computes a regularized loss for the given batch."""
     logits, state = forward.apply(
-        params, state, None, net, batch, is_training=True)
-    labels = jax.nn.one_hot(batch['label'], CLASS_NUM)
-    logits = logits.reshape(len(labels), 1, CLASS_NUM)  # match labels shape
+        params, state, None, batch, is_training=True)
+    labels = jax.nn.one_hot(batch[1], CLASS_NUM)
+    logits = logits.reshape(len(labels), CLASS_NUM)  # match labels shape
     loss = optax.softmax_cross_entropy(logits=logits, labels=labels).mean()
     acc = (labels.argmax(0, axis=2) == logits.argmax(0, axis=2)).mean()
 
@@ -60,15 +57,14 @@ def loss_fn(params, state, net, batch, l2=True):
     return loss, (loss, state, acc)
 
 
-loss_fn_grad = jax.grad(loss_fn, has_aux=True)
+loss_fn_grad = jax.grad(loss_fn, has_aux=True, argnums = 1)
 
 
-@jax.jit
-def train_step(opt, train_state, batch, net, l2=True):
+@partial(jax.jit, static_argnums = (0,1,4))
+def train_step(forward, opt, train_state, batch, l2=True):
     """Applies an update to parameters and returns new state."""
     params, state, opt_state = train_state
-    grads, (loss, new_state, acc) = loss_fn_grad(
-        params, state, net, batch, l2=l2)
+    grads, (loss, new_state, acc) = loss_fn_grad(forward, params, state, batch, l2=l2)
 
     # Compute and apply updates via our optimizer.
     updates, new_opt_state = opt.update(grads, opt_state)
@@ -78,32 +74,34 @@ def train_step(opt, train_state, batch, net, l2=True):
     return train_state, loss, acc
 
 
-def initial_state(rng, opt, net, batch):
+def initial_state(forward, rng, opt, batch):
     """Computes the initial network state."""
-    params, state = forward.init(rng, net, batch, is_training=True)
+    params, state = forward.init(rng, batch, is_training=True)
     opt_state = opt.init(params)
     return TrainState(params, state, opt_state)
 
 
 def train(run_name, description, net, epochs, dataloader, dataloader_test, l2=True, momentum=True):
+    # Transform our forwards function into a pair of pure functions.
+    forward = hk.transform_with_state(get_forward_fn(net))
+
     opt = make_optimizer(momentum)
 
     rng = random.PRNGKey(0)
 
-    train_state = initial_state(
-        rng, opt, net, {"image": jnp.zeros((64, 32, 32, 3))})
+    train_state = initial_state(forward, rng, opt, (jnp.zeros((64, 32, 32, 3)),))
 
     artifact = wandb.Artifact(run_name, type='model', description=description)
 
-    os.mkdir(f'../run/{run_name}/')
+    if not os.path.exists(f'../run/{run_name}/'):
+        os.mkdir(f'../run/{run_name}/')
 
     for e in range(epochs):
         losses = []
         accs = []
 
         for batch in dataloader:
-            train_state, loss, acc = train_step(
-                opt, train_state, batch, net, l2)
+            train_state, loss, acc = train_step(forward, opt, train_state, batch, l2)
             losses.append(loss)
             accs.append(acc)
             wandb.log({'loss': loss, 'acc': acc})
@@ -114,7 +112,7 @@ def train(run_name, description, net, epochs, dataloader, dataloader_test, l2=Tr
         for batch in dataloader_test:
             params, state, opt_state = train_state
 
-            _, (loss, state, acc) = loss_fn(params, state, net, batch, l2)
+            _, (loss, state, acc) = loss_fn(forward, params, state, batch, l2)
             losses.append(loss)
             accs.append(acc)
 

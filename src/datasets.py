@@ -1,4 +1,5 @@
 import numpy as np
+from jax import numpy as jnp
 import torch
 
 from torchvision.datasets import CIFAR10
@@ -13,11 +14,13 @@ AUGMENTATION_TRANSFORMS = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
     NORMALIZE_TRANSFORM,
+    transforms.Lambda(lambda x: jnp.array(x))
 ])
 
 STANDARD_TRANFORMS = transforms.Compose([
     transforms.ToTensor(),
-    NORMALIZE_TRANSFORM
+    NORMALIZE_TRANSFORM,
+    transforms.Lambda(lambda x: jnp.array(x))
 ])
 
 def get_adversarial_cifar(data_root, download_data=False, R=1, zero_out_ratio=0, random_state=0):
