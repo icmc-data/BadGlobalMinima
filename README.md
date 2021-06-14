@@ -1,4 +1,4 @@
-[ReviewNB](app.reviewnb.com/icmc-data/BadGlobalMinima)
+[ReviewNB](https://app.reviewnb.com/icmc-data/BadGlobalMinima)
 
 # Bad Global Minima Exist and SGD Can Reach Them
 
