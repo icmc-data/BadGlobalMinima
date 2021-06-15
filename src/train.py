@@ -1,5 +1,7 @@
 
 # Flexible integration for any Python script
+from tqdm.auto import tqdm
+import tree
 import wandb
 import os
 import haiku as hk
@@ -9,6 +11,7 @@ from jax import numpy as jnp
 from jax import random
 from typing import NamedTuple
 from functools import partial
+import pickle
 
 # Number of classes in CIFAR10
 CLASS_NUM = 10
@@ -20,15 +23,15 @@ def get_forward_fn(net):
         return net(num_classes=CLASS_NUM)(images, is_training=is_training)
     return _forward
 
-def make_optimizer(momentum=True):
+def make_optimizer(momentum=True, schedule_fn = lambda x:-1e-3):
     """SGD with momentum and a fixed lr."""
     if momentum:
         return optax.chain(
             optax.trace(decay=0.9, nesterov=False),  # momentum
-            optax.scale(-1e-3))
+            optax.scale_by_schedule(schedule_fn))
     else:
         return optax.chain(
-            optax.scale(-1e-3))
+            optax.scale(schedule_fn))
 
 
 def l2_loss(params):
@@ -48,12 +51,12 @@ def loss_fn(forward, params, state, batch, l2=True):
     labels = jax.nn.one_hot(batch[1], CLASS_NUM)
     logits = logits.reshape(len(labels), CLASS_NUM)  # match labels shape
     loss = optax.softmax_cross_entropy(logits=logits, labels=labels).mean()
-    acc = (labels.argmax(0, axis=2) == logits.argmax(0, axis=2)).mean()
+    acc = (labels.argmax(1) == logits.argmax(1)).mean()
 
     if l2:
         l2_params = [p for ((mod_name, _), p) in tree.flatten_with_path(params)
                      if 'batchnorm' not in mod_name]
-        loss = loss + 1e-4 * l2_loss(l2_params)
+        loss = loss + 5e-4 * l2_loss(l2_params)
     return loss, (loss, state, acc)
 
 
@@ -81,48 +84,53 @@ def initial_state(forward, rng, opt, batch):
     return TrainState(params, state, opt_state)
 
 
-def train(run_name, description, net, epochs, dataloader, dataloader_test, l2=True, momentum=True):
+def train(net, epochs, dataloader, dataloader_test, schedule_fn = lambda x: -1e-3, l2=True, momentum=True, seed = 0):
     # Transform our forwards function into a pair of pure functions.
     forward = hk.transform_with_state(get_forward_fn(net))
 
-    opt = make_optimizer(momentum)
+    opt = make_optimizer(momentum, schedule_fn)
 
-    rng = random.PRNGKey(0)
+    rng = random.PRNGKey(seed)
 
     train_state = initial_state(forward, rng, opt, (jnp.zeros((64, 32, 32, 3)),))
 
-    artifact = wandb.Artifact(run_name, type='model', description=description)
+    if not os.path.exists(f'./run/'):
+        os.mkdir(f'./run/')
 
-    if not os.path.exists(f'../run/{run_name}/'):
-        os.mkdir(f'../run/{run_name}/')
+    with open(f"./run/weights_init.pkl", 'wb') as f:
+        pickle.dump(train_state, f)
+    wandb.save(f"./run/weights_init.pkl", )
 
     for e in range(epochs):
+        print('Epoch', e+1)
         losses = []
         accs = []
 
-        for batch in dataloader:
+        for batch in tqdm(dataloader):
+            batch[0] = jnp.array(batch[0])
+            batch[1] = jnp.array(batch[1])
             train_state, loss, acc = train_step(forward, opt, train_state, batch, l2)
             losses.append(loss)
             accs.append(acc)
-            wandb.log({'loss': loss, 'acc': acc})
+            wandb.log({'loss': float(loss), 'acc': float(acc), 'lr' : float(schedule_fn(train_state.opt_state[1].count))})
 
-        losses = []
-        accs = []
+        if dataloader_test != None:
+            losses = []
+            accs = []
 
-        for batch in dataloader_test:
-            params, state, opt_state = train_state
+            for batch in dataloader_test:
+                batch[0] = jnp.array(batch[0])
+                batch[1] = jnp.array(batch[1])
+                params, state, opt_state = train_state
 
-            _, (loss, state, acc) = loss_fn(forward, params, state, batch, l2)
-            losses.append(loss)
-            accs.append(acc)
+                _, (loss, state, acc) = loss_fn(forward, params, state, batch, l2)
+                losses.append(loss)
+                accs.append(acc)
 
-        wandb.log({'test_loss': jnp.mean(losses), 'test_acc': jnp.mean(accs)})
+            wandb.log({'test_loss': float(jnp.mean(jnp.array(losses))), 'test_acc': float(jnp.mean(jnp.array(accs)))})
 
-        if e % 50 == 0:
-            pickle.dump(run_name, open(
-                f"../run/{run_name}/{run_name}_{e}", 'wb'))
-
-    artifact.add_dir(f'./run/{run_name}/')
-    wandb.log_artifact(artifact)
+    with open(f"./run/weights_final.pkl", 'wb') as f:
+        pickle.dump(train_state, f)
+    wandb.save(f"./run/weights_final.pkl", )
 
     return train_state
