@@ -1,0 +1,4 @@
+wandb
+dm-haiku
+fire
+optax
