@@ -37,6 +37,10 @@ def make_optimizer(momentum=True, schedule_fn = lambda x:-1e-3):
 def l2_loss(params):
     return 0.5 * sum(jnp.sum(jnp.square(p)) for p in params)
 
+def lp_path_norm(forward, weights, p=2, input_size=[3, 32, 32]):
+    pw_model = jax.tree_map(lambda w: jnp.pow(jnp.abs(w), p), weights
+    data_ones = jnp.ones(input_size)
+    return (forward.apply(params, state, None, data_ones).sum() ** (1 / p ))
 
 class TrainState(NamedTuple):
     params: hk.Params
