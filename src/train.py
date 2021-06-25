@@ -88,7 +88,8 @@ def initial_state(forward, rng, opt, batch):
     return TrainState(params, state, opt_state)
 
 
-def train(net, epochs, dataloader, dataloader_test, schedule_fn = lambda x: -1e-3, l2=True, momentum=True, seed = 0, weights_file = None):
+def train(net, epochs, dataloader, dataloader_test, schedule_fn = lambda x: -1e-3, l2=True, 
+        momentum=True, seed = 0, weights_file="", run_weights_name=None):
     # Transform our forwards function into a pair of pure functions.
     forward = hk.transform_with_state(get_forward_fn(net))
 
@@ -98,8 +99,9 @@ def train(net, epochs, dataloader, dataloader_test, schedule_fn = lambda x: -1e-
 
     train_state = initial_state(forward, rng, opt, (jnp.zeros((64, 32, 32, 3)),))
 
-    if weights_file != None:
-        train_state.params = pickle.load(open(weights_file, 'rb'))
+    if run_weights_name is not None:
+        temp_params = pickle.load(open(weights_file, 'rb'))
+        train_state = TrainState(temp_params, train_state.state, train_state.opt_state)
 
     if not os.path.exists(f'./run/'):
         os.mkdir(f'./run/')
