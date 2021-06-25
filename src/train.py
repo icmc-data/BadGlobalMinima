@@ -88,7 +88,7 @@ def initial_state(forward, rng, opt, batch):
     return TrainState(params, state, opt_state)
 
 
-def train(net, epochs, dataloader, dataloader_test, schedule_fn = lambda x: -1e-3, l2=True, momentum=True, seed = 0):
+def train(net, epochs, dataloader, dataloader_test, schedule_fn = lambda x: -1e-3, l2=True, momentum=True, seed = 0, weights_file = None):
     # Transform our forwards function into a pair of pure functions.
     forward = hk.transform_with_state(get_forward_fn(net))
 
@@ -97,6 +97,9 @@ def train(net, epochs, dataloader, dataloader_test, schedule_fn = lambda x: -1e-
     rng = random.PRNGKey(seed)
 
     train_state = initial_state(forward, rng, opt, (jnp.zeros((64, 32, 32, 3)),))
+
+    if weights_file != None:
+        train_state.params = pickle.load(open(weights_file, 'rb'))
 
     if not os.path.exists(f'./run/'):
         os.mkdir(f'./run/')
@@ -134,7 +137,7 @@ def train(net, epochs, dataloader, dataloader_test, schedule_fn = lambda x: -1e-
             wandb.log({'test_loss': float(jnp.mean(jnp.array(losses))), 'test_acc': float(jnp.mean(jnp.array(accs)))})
 
     with open(f"./run/weights_final.pkl", 'wb') as f:
-        pickle.dump(train_state, f)
+        pickle.dump(train_state.params, f)
     wandb.save(f"./run/weights_final.pkl", )
 
     return train_state

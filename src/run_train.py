@@ -11,7 +11,7 @@ def run_experiment(
         initial_lr=1e-1, lr_boundaries=[150, 250], seed=0, augmentation=False,
         epochs=1, batch_size=128, net = ResNet18, l2=True,
         momentum=True, adversarial_dataset=False, R=None, zero_out_ratio=None,
-        testing=False, 
+        testing=False, weights_file = None,
     ):
     """Runs the experiment with given parameters and auto logs to wandb.
     In case of errors, make sure you've runned 'wandb login'
@@ -40,7 +40,7 @@ def run_experiment(
     boundaries_and_scales = {ep * len(dataloader) : 1/10 for ep in wandb.config.lr_boundaries}
     schedule_fn = optax.piecewise_constant_schedule(-wandb.config.initial_lr, boundaries_and_scales)
     train(net, wandb.config.epochs, dataloader, dataloader_test, schedule_fn, 
-          wandb.config.l2, wandb.config.momentum, wandb.config.seed)
+          wandb.config.l2, wandb.config.momentum, wandb.config.seed, wandb.config.weights_file)
 
 
 if __name__ == "__main__":
