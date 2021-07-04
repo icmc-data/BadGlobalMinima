@@ -127,6 +127,10 @@ def train(net, epochs, dataloader, dataloader_test, schedule_fn = lambda x: -1e-
         l1_path = lp_path_norm(forward, train_state, rng, p=1)
         l2_path = lp_path_norm(forward, train_state, rng, p=2)
         wandb.log({'l1_path': float(l1_path), 'l2_path': float(l2_path)})
+        
+        with open(f"./run/weights_epoch_{e}.pkl", 'wb') as f:
+            pickle.dump(train_state, f)
+        wandb.save(f"./run/weights_epoch_{e}.pkl", )
 
         if dataloader_test != None:
             losses = []
