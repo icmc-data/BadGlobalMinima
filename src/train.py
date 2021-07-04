@@ -37,12 +37,11 @@ def make_optimizer(momentum=True, schedule_fn = lambda x:-1e-3):
 def l2_loss(params):
     return 0.5 * sum(jnp.sum(jnp.square(p)) for p in params)
 
-def lp_path_norm(forward, train_state, p=2, input_size=[3, 32, 32]):
-    weights = train_state.weights
-    state = train_state.state
-    pw_model = jax.tree_map(lambda w: jnp.power(jnp.abs(w), p), weights)
+def lp_path_norm(forward, train_state, rng, p=2, input_size=[1, 32, 32, 3]):
+    params, state, opt_state = train_state
+    pw_model = jax.tree_map(lambda w: jnp.power(jnp.abs(w), p), params)
     data_ones = jnp.ones(input_size)
-    return (forward.apply(pw_model, state, data_ones).sum() ** (1 / p ))
+    return (forward.apply(pw_model, state, rng, data_ones, is_training=False)[0].sum() ** (1 / p ))
 
 class TrainState(NamedTuple):
     params: hk.Params
@@ -124,6 +123,10 @@ def train(net, epochs, dataloader, dataloader_test, schedule_fn = lambda x: -1e-
             losses.append(loss)
             accs.append(acc)
             wandb.log({'loss': float(loss), 'acc': float(acc), 'lr' : float(schedule_fn(train_state.opt_state[1].count))})
+            
+        l1_path = lp_path_norm(forward, train_state, rng, p=1)
+        l2_path = lp_path_norm(forward, train_state, rng, p=2)
+        wandb.log({'l1_path': float(l1_path), 'l2_path': float(l2_path)})
 
         if dataloader_test != None:
             losses = []
