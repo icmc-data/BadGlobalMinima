@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from torchvision.datasets import CIFAR10
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
 
@@ -13,14 +13,23 @@ AUGMENTATION_TRANSFORMS = transforms.Compose([
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
     NORMALIZE_TRANSFORM,
+    transforms.Lambda(lambda x: x.permute(1, 2, 0))
 ])
 
 STANDARD_TRANFORMS = transforms.Compose([
     transforms.ToTensor(),
-    NORMALIZE_TRANSFORM
+    NORMALIZE_TRANSFORM,
+    transforms.Lambda(lambda x: x.permute(1, 2, 0))
 ])
 
-def get_adversarial_cifar(data_root, download_data=False, R=1, zero_out_ratio=0, random_state=0):
+def get_adversarial_cifar(data_root,
+                          batch_size=1,
+                          shuffle=False,
+                          download_data=False,
+                          R=1,
+                          zero_out_ratio=0,
+                          random_state=0):
+
     ds = CIFAR10(root=data_root,
                  download=download_data,
                  train=True)
@@ -30,11 +39,19 @@ def get_adversarial_cifar(data_root, download_data=False, R=1, zero_out_ratio=0,
                                 R=R, 
                                 zero_out_ratio=zero_out_ratio, 
                                 random_state=random_state)
+
+    loader = DataLoader(adv_ds, batch_size=batch_size, shuffle=shuffle)
     
-    return adv_ds
+    return loader
 
 
-def get_cifar(data_root, download_data=False, split='train', augmentation=False):
+def get_cifar(data_root,
+              batch_size=1,
+              augmentation=False,
+              download_data=False,
+              split='train',
+              shuffle=False):
+
     if split not in ['train', 'test']:
         raise ValueError(f'split must be train or test, not {split}')
 
@@ -45,7 +62,9 @@ def get_cifar(data_root, download_data=False, split='train', augmentation=False)
                  download=download_data,
                  transform=transform)
 
-    return ds
+    loader = DataLoader(ds, batch_size=batch_size, shuffle=shuffle)
+
+    return loader
 
 class AdversarialDataset(Dataset):
     def __init__(self, original_images, n_classes=10, R=1, zero_out_ratio=0, random_state=0):

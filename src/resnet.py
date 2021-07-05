@@ -19,6 +19,10 @@ hk.max_pool = pool.max_pool
 del basic, batch_norm, conv, module, pool
 FloatStrOrBool = Union[str, float, bool]
 
+from haiku.initializers import VarianceScaling
+w_init = VarianceScaling(2.0, "fan_in",  "uniform")
+b_init = VarianceScaling(1.0, "fan_in",  "uniform")
+
 
 class BlockV1(hk.Module):
   """ResNet V1 block with optional bottleneck."""
@@ -47,7 +51,9 @@ class BlockV1(hk.Module):
           stride=stride,
           with_bias=False,
           padding="SAME",
-          name="shortcut_conv")
+          name="shortcut_conv",
+          w_init = w_init,
+          b_init = b_init)
 
       self.proj_batchnorm = hk.BatchNorm(name="shortcut_batchnorm", **bn_config)
 
@@ -58,7 +64,9 @@ class BlockV1(hk.Module):
         stride=1 if bottleneck else stride,
         with_bias=False,
         padding="SAME",
-        name="conv_0")
+        name="conv_0",
+        w_init = w_init,
+        b_init = b_init)
     bn_0 = hk.BatchNorm(name="batchnorm_0", **bn_config)
 
     conv_1 = hk.Conv2D(
@@ -67,7 +75,9 @@ class BlockV1(hk.Module):
         stride=stride if bottleneck else 1,
         with_bias=False,
         padding="SAME",
-        name="conv_1")
+        name="conv_1",
+        w_init = w_init,
+        b_init = b_init)
 
     bn_1 = hk.BatchNorm(name="batchnorm_1", **bn_config)
     layers = ((conv_0, bn_0), (conv_1, bn_1))
@@ -79,7 +89,9 @@ class BlockV1(hk.Module):
           stride=1,
           with_bias=False,
           padding="SAME",
-          name="conv_2")
+          name="conv_2",
+          w_init = w_init,
+          b_init = b_init)
 
       bn_2 = hk.BatchNorm(name="batchnorm_2", scale_init=jnp.zeros, **bn_config)
       layers = layers + ((conv_2, bn_2),)
@@ -235,7 +247,9 @@ class ResNet(hk.Module):
         stride=1,
         with_bias=False,
         padding="SAME",
-        name="initial_conv")
+        name="initial_conv",
+        w_init = w_init,
+        b_init = b_init)
 
     self.initial_batchnorm = hk.BatchNorm(name="initial_batchnorm",
                                             **bn_config)
