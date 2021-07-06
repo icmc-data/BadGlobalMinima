@@ -31,11 +31,15 @@ def make_optimizer(momentum=True, schedule_fn = lambda x:-1e-3):
             optax.scale_by_schedule(schedule_fn))
     else:
         return optax.chain(
-            optax.scale(schedule_fn))
+            optax.scale_by_schedule(schedule_fn))
 
 
 def l2_loss(params):
     return 0.5 * sum(jnp.sum(jnp.square(p)) for p in params)
+
+def l2_normsq(x):
+  leaves, _ = jax.tree_util.tree_flatten(x)
+  return sum([jnp.sum(leaf ** 2) for leaf in leaves])
 
 def lp_path_norm(forward, train_state, rng, p=2, input_size=[1, 32, 32, 3]):
     params, state, opt_state = train_state
@@ -122,15 +126,13 @@ def train(net, epochs, dataloader, dataloader_test, schedule_fn = lambda x: -1e-
             train_state, loss, acc = train_step(forward, opt, train_state, batch, l2)
             losses.append(loss)
             accs.append(acc)
-            wandb.log({'loss': float(loss), 'acc': float(acc), 'lr' : float(schedule_fn(train_state.opt_state[1].count))})
+            curr_iter = train_state.opt_state[1].count if momentum else train_state.opt_state[0].count
+            wandb.log({'loss': float(loss), 'acc': float(acc), 'lr' : float(schedule_fn(curr_iter))})
             
         l1_path = lp_path_norm(forward, train_state, rng, p=1)
         l2_path = lp_path_norm(forward, train_state, rng, p=2)
-        wandb.log({'l1_path': float(l1_path), 'l2_path': float(l2_path)})
-        
-        with open(f"./run/weights_epoch_{e}.pkl", 'wb') as f:
-            pickle.dump(train_state, f)
-        wandb.save(f"./run/weights_epoch_{e}.pkl", )
+        frobenius = l2_normsq(train_state.params)
+        wandb.log({'l1_path': float(l1_path), 'l2_path': float(l2_path), 'frobenius': float(frobenius)})
 
         if dataloader_test != None:
             losses = []
