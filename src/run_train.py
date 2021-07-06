@@ -15,7 +15,7 @@ def download_weights_file(run_weights_name):
 def run_experiment(
         initial_lr=1e-1, lr_boundaries=[150, 250], seed=0, augmentation=False,
         epochs=1, batch_size=128, net = ResNet18, l2=True,
-        momentum=True, adversarial_dataset=False, R=None, zero_out_ratio=None,
+        momentum=True, adversarial_dataset=False, R=1, zero_out_ratio=0,
             testing=False, weights_file="run/weights_final.pkl", run_weights_name=None,
     ):
     """Runs the experiment with given parameters and auto logs to wandb.
@@ -35,7 +35,7 @@ def run_experiment(
 
     if wandb.config.adversarial_dataset:
         dataloader = datasets.get_adversarial_cifar(
-            data_root='.', download_data=True, split = 'train', 
+            data_root='.', download_data=True, 
             batch_size = wandb.config.batch_size, R = wandb.config.R, 
             zero_out_ratio = wandb.config.zero_out_ratio
         )
