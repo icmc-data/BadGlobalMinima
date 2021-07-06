@@ -33,6 +33,8 @@ def run_experiment(
 
     if run_weights_name is not None:
         weights_file = download_weights_file(wandb.config.run_weights_name)
+    else:
+        weights_file = None
 
     if wandb.config.adversarial_dataset:
         dataloader = datasets.get_adversarial_cifar(
