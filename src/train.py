@@ -53,7 +53,7 @@ class TrainState(NamedTuple):
     opt_state: optax.OptState
 
 
-#@partial(jax.jit, static_argnums = (0,4))
+@partial(jax.jit, static_argnums = (0,4))
 def loss_fn(forward, params, state, batch, l2=True):
     """Computes a regularized loss for the given batch."""
     logits, state = forward.apply(
