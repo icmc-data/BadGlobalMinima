@@ -2,8 +2,11 @@
 
 This project attempts to reproduce the main claims in [Bad Global Minima Exist and SGD Can Reach Them](https://arxiv.org/abs/1906.02613) for the 2021 Weights & Biases Reproducibility Challenge.
 
-Project done by the group [Data](data.icmc.usp.br/) with participations by Gustavo Sutter P. Carvalho, João Araújo, João Pedro Rodrigues Mattos, João Marcos Cardoso da Silva and Bruno Gomes Coelho.
+Project done by the group [Data](http://data.icmc.usp.br/) with participations by Gustavo Sutter P. Carvalho, João Araújo, João Pedro Rodrigues Mattos, João Marcos Cardoso da Silva and Bruno Gomes Coelho.
 
+## Code Structure
+- `src` - Contains the source code with it's own README explaning how to use the code.
+- `notebooks` - Helper code for validating, prototyping and testing our code.
 
 ## Original authors and citations
 
