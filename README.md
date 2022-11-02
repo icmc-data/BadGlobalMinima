@@ -4,6 +4,8 @@ This project attempts to reproduce the main claims in [Bad Global Minima Exist a
 
 Project done by the group [Data](http://data.icmc.usp.br/) with participations by Gustavo Sutter P. Carvalho, João Araújo, João Pedro Rodrigues Mattos, João Marcos Cardoso da Silva and Bruno Gomes Coelho.
 
+See the final report [here](https://wandb.ai/data-icmc/bad-global-minima/reports/Bad-Global-Minima-Exist-and-SGD-Can-Reach-Them--Vmlldzo4NDY0NjE).
+
 ## Code Structure
 - `src` - Contains the source code with it's own README explaning how to use the code.
 - `notebooks` - Helper code for validating, prototyping and testing our code.
